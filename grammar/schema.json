@@ -1,0 +1,27 @@
+{
+  "tables": {
+    "users": {
+      "columns": {
+        "id": "int",
+        "name": "string",
+        "email": "string",
+        "age": "int",
+        "country": "string",
+        "status": "user_status"
+      }
+    },
+    "orders": {
+      "columns": {
+        "id": "int",
+        "user_id": "int",
+        "amount": "decimal",
+        "created_at": "datetime",
+        "status": "order_status"
+      }
+    }
+  },
+  "enums": {
+    "user_status": ["active", "inactive", "banned"],
+    "order_status": ["pending", "paid", "cancelled"]
+  }
+}

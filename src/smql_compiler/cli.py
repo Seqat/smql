@@ -38,8 +38,15 @@ def compile(
         # Parse
         ast = parse_file(str(file_path))
 
+        # Load schema (if available)
+        schema: dict | None = None
+        schema_path = Path(__file__).parent.parent.parent / "grammar" / "schema.json"
+        if schema_path.exists():
+            import json
+            schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
         # Type check
-        checker = SMQLTypeChecker()
+        checker = SMQLTypeChecker(schema=schema)
         is_valid = checker.check(ast)
 
         if explain:
@@ -47,6 +54,8 @@ def compile(
                 console.print(diag)
 
         if not is_valid:
+            for err in checker.errors:
+                console.print(f"[red]Error:[/red] {err}")
             console.print("[red]Type checking failed.[/red]")
             raise typer.Exit(code=1)
 
