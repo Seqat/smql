@@ -1,0 +1,80 @@
+// PEG Grammar for SMQL v0.2.0
+// SeMantic Query Language — "The Safe Pipe"
+// This is a draft grammar. Full specification coming in v0.3.0.
+
+// --- Top Level ---
+program := (import_stmt | query_def | pipeline)*
+
+import_stmt := "import" string_literal
+
+query_def := "query" identifier "(" param_list? ")"
+return_clause?
+pipeline
+"end"
+
+param_list := param ("," param)*
+param := "@" identifier ":" type_annotation
+return_clause := "returns" "{" field_list "}"
+field_list := field ("," field)*
+field := identifier ":" type_annotation
+
+type_annotation := type_name
+type_name := "string" ("?")?
+| "int"
+| "decimal" "(" digits "," digits ")"
+| "bool"
+| "date"
+| "datetime"
+| "uuid"
+| identifier // enum reference
+
+pipeline := step+
+step := indent step_body
+step_body := "from" source
+| "filter" expression
+| "derive" identifier "=" expression
+| join_type "join" source "on" expression
+| "aggregate" aggregate_list ("by" group_list)?
+| "sort" sort_list
+| "take" digits
+| "select" select_list
+| "|" "union" "(" pipeline ")"
+
+source := identifier ("(" call_args ")")? // table or query call
+| "(" pipeline ")"
+call_args := call_arg ("," call_arg)*
+call_arg := "@"? identifier "=" expression
+
+join_type := "left" | "right" | "cross" | "" // default = inner
+
+aggregate_list := aggregate_item ("," aggregate_item)*
+aggregate_item := identifier "=" aggregate_fn "(" expression ")"
+aggregate_fn := "sum" | "avg" | "count" | "min" | "max" | "count_distinct"
+group_list := expression ("," expression)*
+sort_list := sort_item ("," sort_item)*
+sort_item := expression ("asc" | "desc")?
+select_list := select_item ("," select_item)*
+select_item := expression ("as" identifier)? // alias via 'as'
+
+expression := comparison (("and" | "or") comparison)*
+comparison := additive (("==" | "!=" | ">" | "<" | ">=" | "<=") additive)?
+| additive ("is" ("not"? "null"))
+additive := multiplicative (("+" | "-") multiplicative)*
+multiplicative := unary (("" | "/") unary)
+unary := ("not")? primary
+primary := digits
+| string_literal
+| "@" identifier // parameter
+| identifier ("." identifier)* // qualified name / enum
+| "(" expression ")"
+| function_call
+
+function_call := identifier "(" arg_list? ")"
+arg_list := expression ("," expression)*
+
+// --- Lexical ---
+identifier := [a-zA-Z_][a-zA-Z0-9_]*
+digits := [0-9]+
+string_literal := """ [^"]* """
+indent := " " // 4 spaces (significant whitespace)
+comment := "//" [^\n]*

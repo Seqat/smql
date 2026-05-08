@@ -1,0 +1,9 @@
+// Basic SMQL example: find active users over a certain age
+from users
+filter status == user_status.active
+filter age > @min_age
+join orders as o on users.id == o.user_id
+aggregate total_spent = sum(o.amount) by users.id, users.name
+sort total_spent desc
+take 10
+select name, total_spent
