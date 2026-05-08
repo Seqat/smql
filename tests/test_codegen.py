@@ -150,3 +150,73 @@ def test_full_pipeline():
     assert "LIMIT 10" in sql
     assert "SUM(o.amount) AS total_spent" in sql
     assert params == [18]
+
+
+# ------------------------------------------------------------------
+# Security: string literals must be parameterized
+# ------------------------------------------------------------------
+
+def test_string_literal_parameterized():
+    """String literals must use $N placeholders, never inline SQL strings."""
+    sql, params = _compile(
+        'from users\nfilter country == "TR"\ntake 10\n'
+    )
+    assert "$1" in sql
+    assert "TR" not in sql  # Must NOT appear inline in the SQL
+    assert params == ["TR"]
+
+
+def test_string_literal_no_inline_quotes():
+    """Ensure no single-quoted string values appear in the SQL output."""
+    sql, params = _compile(
+        'from users\nfilter status == "active"\n'
+    )
+    assert "'active'" not in sql
+    assert "$1" in sql
+    assert params == ["active"]
+
+
+# ------------------------------------------------------------------
+# Security: missing parameter raises ValueError
+# ------------------------------------------------------------------
+
+def test_missing_param_raises():
+    """Using @name without providing a value must raise ValueError."""
+    import pytest
+    with pytest.raises(ValueError, match="Missing value for parameter '@min_age'"):
+        _compile("from users\nfilter age > @min_age\n")
+
+
+# ------------------------------------------------------------------
+# Literal type preservation
+# ------------------------------------------------------------------
+
+def test_int_literal_inline():
+    """Integer literals remain inline (no placeholder)."""
+    sql, params = _compile("from users\nfilter age > 18\n")
+    assert "18" in sql
+    assert params == []
+
+
+def test_float_literal_inline():
+    """Float literals remain inline (no placeholder)."""
+    sql, params = _compile("from orders\nfilter total > 99.5\n")
+    assert "99.5" in sql
+    assert params == []
+
+
+# ------------------------------------------------------------------
+# Sort with qualified name (no regex needed)
+# ------------------------------------------------------------------
+
+def test_sort_qualified_name():
+    """Sort on a qualified name (table.column) works without regex hacks."""
+    sql, _ = _compile("from users\nsort users.name desc\n")
+    assert "ORDER BY users.name DESC" in sql
+
+
+def test_sort_simple_name():
+    """Sort on a simple column name produces correct ORDER BY."""
+    sql, _ = _compile("from users\nsort age asc\n")
+    assert "ORDER BY age ASC" in sql
+

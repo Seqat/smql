@@ -1,6 +1,5 @@
 """SQL code generator for SMQL AST. Target: PostgreSQL."""
 
-import re
 
 from .ast import (
     Program, QueryDefinition,
@@ -79,12 +78,14 @@ class PostgresCodeGenerator:
         from_parts: list[str] = []
         join_parts: list[str] = []
         where_parts: list[str] = []
+        having_parts: list[str] = []
         group_by_parts: list[str] = []
         select_parts: list[str] = []
         order_parts: list[str] = []
         limit_val: int | None = None
         aggregate_metrics: list[dict] = []
         derive_parts: list[tuple[str, str]] = []
+        seen_aggregate: bool = False
 
         for step in steps:
             if isinstance(step, FromClause):
@@ -103,16 +104,19 @@ class PostgresCodeGenerator:
 
             elif isinstance(step, FilterClause):
                 if step.expression is not None:
-                    where_parts.append(self._emit_expr(step.expression))
+                    if seen_aggregate:
+                        having_parts.append(self._emit_expr(step.expression))
+                    else:
+                        where_parts.append(self._emit_expr(step.expression))
 
             elif isinstance(step, AggregateClause):
+                seen_aggregate = True
                 aggregate_metrics = step.metrics
-                group_by_parts = [self._emit_expr(g) if isinstance(g, Expression) else str(g)
-                                  for g in step.group_by]
+                group_by_parts = [self._emit_expr(g) for g in step.group_by]
 
             elif isinstance(step, SortClause):
                 direction = step.direction.upper() if step.direction else "ASC"
-                field_sql = self._resolve_sort_field(step.field)
+                field_sql = self._emit_expr(step.field)
                 order_parts.append(f"{field_sql} {direction}")
 
             elif isinstance(step, TakeClause):
@@ -190,6 +194,9 @@ class PostgresCodeGenerator:
         if group_by_parts:
             lines.append(f"GROUP BY {', '.join(group_by_parts)}")
 
+        if having_parts:
+            lines.append(f"HAVING {' AND '.join(having_parts)}")
+
         if order_parts:
             lines.append(f"ORDER BY {', '.join(order_parts)}")
 
@@ -228,15 +235,21 @@ class PostgresCodeGenerator:
 
         if isinstance(expr, Literal):
             val = expr.value
+            if isinstance(val, bool):
+                return "TRUE" if val else "FALSE"
             if isinstance(val, str):
-                # Emit string literals as SQL single-quoted strings.
-                escaped = val.replace("'", "''")
-                return f"'{escaped}'"
+                # Security: never interpolate strings into SQL.
+                # Always emit a $N placeholder and record the value.
+                return self._next_param(val)
             return str(val)
 
         if isinstance(expr, ParameterRef):
             name = expr.name
-            value = self.param_values.get(name, name)
+            if name not in self.param_values:
+                raise ValueError(
+                    f"Missing value for parameter '@{name}'"
+                )
+            value = self.param_values[name]
             return self._next_param(value)
 
         if isinstance(expr, QualifiedName):
@@ -258,27 +271,6 @@ class PostgresCodeGenerator:
         inner = self._emit_expr(metric["expr"])
         return f"{fn}({inner})"
 
-    def _resolve_sort_field(self, field) -> str:
-        """Resolve a sort field to SQL text.
-
-        The parser stringifies the expression AST node via ``str()``
-        before storing it in ``SortClause.field``, so we may receive a
-        repr like ``QualifiedName(line=0, column=0, parts=['name'])``.
-        This helper extracts the actual name.
-        """
-        if isinstance(field, Expression):
-            return self._emit_expr(field)
-
-        s = str(field)
-
-        # Attempt to extract parts from a QualifiedName repr
-        m = re.search(r"parts=\[([^\]]+)\]", s)
-        if m:
-            raw = m.group(1)
-            parts = [p.strip().strip("'").strip('"') for p in raw.split(",")]
-            return ".".join(parts)
-
-        return s
 
     # ------------------------------------------------------------------
     # Parameter handling

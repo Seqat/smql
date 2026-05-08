@@ -104,8 +104,10 @@ class SMQLTransformer(Transformer):
         # For simplicity, take the first sort item
         if sort_items:
             first = sort_items[0] if isinstance(sort_items, list) else sort_items
-            if isinstance(first, dict):
-                return SortClause(field=str(first.get("expr", "")), direction=first.get("dir", "asc"))
+            if isinstance(first, tuple):
+                return SortClause(field=first[0], direction=first[1])
+            if isinstance(first, Expression):
+                return SortClause(field=first, direction="asc")
         return SortClause()
 
     def sort_list(self, items):
@@ -114,7 +116,7 @@ class SMQLTransformer(Transformer):
     def sort_item(self, items):
         expr = items[0]
         direction = str(items[1]) if len(items) > 1 else "asc"
-        return {"expr": expr, "dir": direction}
+        return (expr, direction)
 
     def take_clause(self, items):
         return TakeClause(count=int(str(items[0])))

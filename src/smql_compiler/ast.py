@@ -78,13 +78,13 @@ class JoinClause(Node):
 class AggregateClause(Node):
     """aggregate metrics by group_fields"""
     metrics: list[dict] = field(default_factory=list)
-    group_by: list[str] = field(default_factory=list)
+    group_by: list['Expression'] = field(default_factory=list)
 
 
 @dataclass
 class SortClause(Node):
     """sort field [asc|desc]"""
-    field: str = ""
+    field: Optional['Expression'] = None
     direction: str = 'asc'
 
 
