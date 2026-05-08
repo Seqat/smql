@@ -20,7 +20,7 @@ SMQL was designed to solve three core problems in the age of AI‑assisted devel
 ## ✅ Currently Implemented
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Pipeline parsing | ✅ | `from`, `filter`, `join`, `aggregate`, `sort`, `take`, `select` |
 | PostgreSQL code generation | ✅ | Parameterized `$N` placeholders, no string interpolation |
 | Parameter binding | ✅ | `@param_name` → `$N` with values passed via `--param` |
@@ -40,7 +40,7 @@ SMQL was designed to solve three core problems in the age of AI‑assisted devel
 ## 🔲 Planned / In Progress
 
 | Feature | Status | Notes |
-|---|---|---|
+| --- | --- | --- |
 | Window functions | 🔲 | `over`, `partition by`, `row_number()` |
 | Recursive queries | 🔲 | `recursive query` |
 | DML support | 🔲 | `insert`, `update`, `delete` |
@@ -92,7 +92,7 @@ from users | filter age > 18 | take 10
 ## ⚙️ Core Operators
 
 | Operator | Purpose |
-|---|---|
+| --- | --- |
 | `from` | Starts a pipeline (table, query call, or inline pipeline in `( )`). |
 | `filter` | Filters rows (acts like `WHERE` before aggregation, `HAVING` after). |
 | `derive` | Creates a computed column. |
@@ -125,7 +125,7 @@ from users as u
 ## 🧪 Type System
 
 | Type | Description | Example |
-|---|---|---|
+| --- | --- | --- |
 | `string` | Non‑null text | `name: string` |
 | `string?` | Nullable text | `nickname: string?` |
 | `int` | Integer | `age: int` |
@@ -229,7 +229,7 @@ ORDER BY total_spent DESC
 LIMIT 10
 ```
 
-```
+```text
 Parameters: ['active', 18]
 ```
 
