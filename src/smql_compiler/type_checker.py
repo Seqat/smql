@@ -25,6 +25,8 @@ class SMQLTypeChecker:
 
         # Resolved table info: table_name -> {col_name: col_type, ...}
         self._tables: dict[str, dict[str, str]] = {}
+        # Known enum types: enum_name -> list of allowed values
+        self._enums: dict[str, list[str]] = {}
         # Alias → real table name
         self._aliases: dict[str, str] = {}
         # Columns available in the current scope (after aggregation these
@@ -36,6 +38,8 @@ class SMQLTypeChecker:
         if self.schema:
             for tname, tinfo in self.schema.get("tables", {}).items():
                 self._tables[tname] = tinfo.get("columns", {})
+            for ename, evalues in self.schema.get("enums", {}).items():
+                self._enums[ename] = evalues
 
     # ------------------------------------------------------------------
     # Public API
@@ -126,7 +130,12 @@ class SMQLTypeChecker:
         # scope — these references are still valid at this point.
         for g in node.group_by:
             self._check_expr(g)
-            self._group_by_names.add(self._expr_name(g))
+            full_name = self._expr_name(g)
+            self._group_by_names.add(full_name)
+            # Also allow the short (last-part) form so that
+            # ``select name`` works when group_by has ``users.name``.
+            if isinstance(g, QualifiedName) and len(g.parts) > 1:
+                self._group_by_names.add(g.parts[-1])
 
         for m in node.metrics:
             self._metric_names.add(m["name"])
@@ -185,6 +194,15 @@ class SMQLTypeChecker:
         parts = expr.parts
         if len(parts) == 2:
             table_ref, col = parts
+
+            # Check if this is an enum reference (e.g. user_status.active)
+            if table_ref in self._enums:
+                if col not in self._enums[table_ref]:
+                    self.errors.append(
+                        f"Value '{col}' not in enum '{table_ref}'"
+                    )
+                return  # enum refs are not table.column lookups
+
             # Resolve alias → real table name
             real_table = self._aliases.get(table_ref, table_ref)
             if self._tables:

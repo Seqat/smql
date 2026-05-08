@@ -239,3 +239,106 @@ def test_from_subquery():
     assert "FROM (SELECT *\nFROM users\nWHERE age > 18\nLIMIT 100) AS active_users" in sql
 
 
+# ------------------------------------------------------------------
+# Arithmetic expressions
+# ------------------------------------------------------------------
+
+def test_addition():
+    """Addition in expressions generates + operator."""
+    sql, _ = _compile("from orders\nderive total = amount + tax\n")
+    assert "amount + tax" in sql
+
+
+def test_subtraction():
+    """Subtraction in expressions generates - operator."""
+    sql, _ = _compile("from orders\nderive discount = price - sale_price\n")
+    assert "price - sale_price" in sql
+
+
+def test_multiplication():
+    """Multiplication in expressions generates * operator."""
+    sql, _ = _compile("from orders\nderive doubled = amount * 2\n")
+    assert "amount * 2" in sql
+
+
+def test_division():
+    """Division in expressions generates / operator."""
+    sql, _ = _compile("from orders\nderive half = amount / 2\n")
+    assert "amount / 2" in sql
+
+
+# ------------------------------------------------------------------
+# Logical operators
+# ------------------------------------------------------------------
+
+def test_and_operator():
+    """Logical AND produces SQL AND."""
+    sql, _ = _compile("from users\nfilter age > 18 and active == 1\n")
+    assert "AND" in sql
+    assert "age > 18" in sql
+    assert "active = 1" in sql
+
+
+def test_or_operator():
+    """Logical OR produces SQL OR."""
+    sql, _ = _compile("from users\nfilter age > 65 or age < 18\n")
+    assert "OR" in sql
+
+
+# ------------------------------------------------------------------
+# IS NULL / IS NOT NULL codegen
+# ------------------------------------------------------------------
+
+def test_is_null_codegen():
+    """is null generates SQL IS NULL."""
+    sql, _ = _compile("from users\nfilter email is null\n")
+    assert "email IS NULL" in sql
+
+
+def test_is_not_null_codegen():
+    """is not null generates SQL IS NOT NULL."""
+    sql, _ = _compile("from users\nfilter email is not null\n")
+    assert "email IS NOT NULL" in sql
+
+
+# ------------------------------------------------------------------
+# Function calls
+# ------------------------------------------------------------------
+
+def test_function_call_upper():
+    """Function calls emit uppercased function names."""
+    sql, _ = _compile("from users\nfilter length(name) > 3\n")
+    assert "LENGTH(name)" in sql
+
+
+# ------------------------------------------------------------------
+# Derive clause
+# ------------------------------------------------------------------
+
+def test_derive_adds_computed_column():
+    """Derive clause adds a computed column to the SELECT list."""
+    sql, _ = _compile("from orders\nderive net = amount - tax\n")
+    assert "amount - tax AS net" in sql
+
+
+# ------------------------------------------------------------------
+# Empty pipeline
+# ------------------------------------------------------------------
+
+def test_empty_pipeline():
+    """An empty program returns a comment."""
+    from smql_compiler.ast import Program
+    gen = PostgresCodeGenerator()
+    sql, params = gen.generate(Program(statements=[]))
+    assert "empty" in sql.lower()
+    assert params == []
+
+
+# ------------------------------------------------------------------
+# Select with alias
+# ------------------------------------------------------------------
+
+def test_select_with_alias():
+    """Select clause with AS alias produces aliased column."""
+    sql, _ = _compile("from users\nselect name as full_name\n")
+    assert "name AS full_name" in sql

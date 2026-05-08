@@ -51,3 +51,63 @@ def test_cli_multiple_params(tmp_path):
     assert "WHERE age > $1 AND country = $2" in result.stdout
     assert "18" in result.stdout
     assert "'TR'" in result.stdout
+
+
+def test_cli_file_not_found():
+    """Passing a non-existent file produces an error."""
+    result = runner.invoke(app, ["compile", "/nonexistent/file.smql"])
+    assert result.exit_code == 1
+    assert "File not found" in result.stdout
+
+
+def test_cli_wrong_extension(tmp_path):
+    """Passing a .sql file produces a warning but still compiles."""
+    sql_path = tmp_path / "test.sql"
+    sql_path.write_text("from users\ntake 5\n")
+    result = runner.invoke(app, ["compile", str(sql_path)])
+    assert "Warning" in result.stdout
+    assert ".sql" in result.stdout
+
+
+def test_cli_version():
+    """The version command prints the version string."""
+    result = runner.invoke(app, ["version"])
+    assert result.exit_code == 0
+    assert "SMQL Compiler v" in result.stdout
+
+
+def test_cli_output_file(tmp_path):
+    """--output writes SQL to a file instead of stdout."""
+    smql_path = tmp_path / "test.smql"
+    smql_path.write_text("from users\ntake 5\n")
+    out_path = tmp_path / "output.sql"
+
+    result = runner.invoke(app, [
+        "compile", str(smql_path), "--output", str(out_path),
+    ])
+    assert result.exit_code == 0
+    assert out_path.exists()
+    content = out_path.read_text()
+    assert "SELECT *" in content
+    assert "FROM users" in content
+
+
+def test_cli_explain(tmp_path):
+    """--explain prints diagnostics."""
+    smql_path = tmp_path / "test.smql"
+    smql_path.write_text("from users\ntake 5\n")
+    result = runner.invoke(app, ["compile", str(smql_path), "--explain"])
+    assert result.exit_code == 0
+
+
+def test_cli_numeric_param_conversion(tmp_path):
+    """Numeric parameter values are converted to int/float."""
+    smql_path = tmp_path / "test.smql"
+    smql_path.write_text("from users\nfilter age > @min_age\n")
+    result = runner.invoke(app, [
+        "compile", str(smql_path), "--param", "min_age=25",
+    ])
+    assert result.exit_code == 0
+    # The param table should show 25 as an int, not '25' as a string
+    assert "25" in result.stdout
+
