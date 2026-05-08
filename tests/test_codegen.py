@@ -71,7 +71,7 @@ def test_inner_join():
     sql, _ = _compile(
         "from users\njoin orders as o on users.id == o.user_id\ntake 10\n"
     )
-    assert "JOIN orders o ON users.id = o.user_id" in sql
+    assert "JOIN orders AS o ON users.id = o.user_id" in sql
 
 
 def test_left_join():
@@ -79,7 +79,7 @@ def test_left_join():
     sql, _ = _compile(
         "from users\nleft join orders as o on users.id == o.user_id\n"
     )
-    assert "LEFT JOIN orders o ON users.id = o.user_id" in sql
+    assert "LEFT JOIN orders AS o ON users.id = o.user_id" in sql
 
 
 # ------------------------------------------------------------------
@@ -142,7 +142,7 @@ def test_full_pipeline():
     sql, params = _compile(source, param_values={"min_age": 18})
 
     assert "FROM users" in sql
-    assert "JOIN orders o ON users.id = o.user_id" in sql
+    assert "JOIN orders AS o ON users.id = o.user_id" in sql
     assert "WHERE age > $1" in sql
     assert "GROUP BY users.id, users.name" in sql
     assert "ORDER BY" in sql
@@ -219,4 +219,23 @@ def test_sort_simple_name():
     """Sort on a simple column name produces correct ORDER BY."""
     sql, _ = _compile("from users\nsort age asc\n")
     assert "ORDER BY age ASC" in sql
+
+
+# ------------------------------------------------------------------
+# Subqueries and aliases
+# ------------------------------------------------------------------
+
+def test_from_alias():
+    """From clause with alias generates AS alias."""
+    sql, _ = _compile("from users as u\ntake 5\n")
+    assert "FROM users AS u" in sql
+
+
+def test_from_subquery():
+    """From clause with subquery pipeline."""
+    sql, _ = _compile(
+        "from (\n  from users\n  filter age > 18\n) as active_users\n"
+    )
+    assert "FROM (SELECT *\nFROM users\nWHERE age > 18\nLIMIT 100) AS active_users" in sql
+
 

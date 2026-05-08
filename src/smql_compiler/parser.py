@@ -20,13 +20,17 @@ class SMQLTransformer(Transformer):
     def query_def(self, items):
         name = str(items[0])
         params = []
+        return_fields = []
         steps = []
         for item in items[1:]:
             if isinstance(item, list):
-                params = item
+                if len(item) > 0 and isinstance(item[0], Parameter):
+                    params = item
+                elif len(item) > 0 and isinstance(item[0], dict):
+                    return_fields = item
             elif isinstance(item, Node):
                 steps.append(item)
-        return QueryDefinition(name=name, params=params, pipeline=steps)
+        return QueryDefinition(name=name, params=params, return_fields=return_fields, pipeline=steps)
 
     def param_list(self, items):
         return list(items)
@@ -47,15 +51,23 @@ class SMQLTransformer(Transformer):
         return items[0]
 
     def type_name(self, items):
-        return " ".join(str(i) for i in items)
+        return " ".join(str(i) for i in items if i is not None)
 
     # --- Step clauses ---
 
     def from_clause(self, items):
         source = items[0]
+        alias = None
+        if len(items) > 1 and items[1] is not None:
+            alias = str(items[1])
+
+        if isinstance(source, FromSubquery):
+            source.alias = alias
+            return source
+
         if isinstance(source, str):
-            return FromClause(source=source)
-        return FromClause(source=str(source))
+            return FromClause(source=source, alias=alias)
+        return FromClause(source=str(source), alias=alias)
 
     def filter_clause(self, items):
         return FilterClause(expression=items[0])
@@ -137,7 +149,12 @@ class SMQLTransformer(Transformer):
         return UnionClause(pipeline=list(items))
 
     def source(self, items):
-        return str(items[0])
+        steps = [i for i in items if i is not None and getattr(i, 'type', '') != '_NL']
+        if not steps:
+            return FromSubquery(pipeline=[])
+        if isinstance(steps[0], Node):
+            return FromSubquery(pipeline=steps)
+        return str(steps[0])
 
     def call_args(self, items):
         return list(items)

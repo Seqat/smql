@@ -31,3 +31,36 @@ def test_parse_parameterized_filter():
     assert ast is not None
     assert isinstance(ast, Program)
     assert len(ast.statements) == 3
+
+
+def test_parse_from_alias():
+    """Parse a from clause with an alias."""
+    source = "from users as u\n"
+    ast = parse_smql(source)
+    assert ast.statements[0].source == "users"
+    assert ast.statements[0].alias == "u"
+
+
+def test_parse_query_return_fields():
+    """Parse a query definition with return fields."""
+    source = "query active_users() returns { id: int, name: string }\nfrom users\nfilter active == 1\nend\n"
+    ast = parse_smql(source)
+    query_def = ast.statements[0]
+    assert query_def.name == "active_users"
+    assert len(query_def.return_fields) == 2
+    assert query_def.return_fields[0]["name"] == "id"
+    assert query_def.return_fields[0]["type"] == "int"
+    assert query_def.return_fields[1]["name"] == "name"
+    assert query_def.return_fields[1]["type"] == "string"
+
+
+def test_parse_from_subquery():
+    """Parse a from clause containing a subquery pipeline."""
+    source = "from (\n  from users\n  filter active == 1\n)\n"
+    ast = parse_smql(source)
+    from_clause = ast.statements[0]
+    # Check that it's a FromSubquery and it contains pipeline steps
+    assert from_clause.__class__.__name__ == "FromSubquery"
+    assert len(from_clause.pipeline) == 2
+    assert from_clause.pipeline[0].source == "users"
+

@@ -2,7 +2,7 @@
 
 
 from .ast import (
-    Program, QueryDefinition,
+    Program, QueryDefinition, FromSubquery,
     FromClause, FilterClause, JoinClause, AggregateClause,
     SortClause, TakeClause, SelectClause, DeriveClause,
     BinaryOp, UnaryOp, Literal, ParameterRef, QualifiedName,
@@ -89,8 +89,13 @@ class PostgresCodeGenerator:
 
         for step in steps:
             if isinstance(step, FromClause):
-                alias = f" {step.alias}" if step.alias else ""
+                alias = f" AS {step.alias}" if step.alias else ""
                 from_parts.append(f"{step.source}{alias}")
+
+            elif isinstance(step, FromSubquery):
+                sub_sql = self._compile_pipeline(step.pipeline)
+                alias = f" AS {step.alias}" if getattr(step, "alias", None) else ""
+                from_parts.append(f"({sub_sql}){alias}")
 
             elif isinstance(step, JoinClause):
                 jtype = step.join_type.upper()
@@ -98,7 +103,7 @@ class PostgresCodeGenerator:
                     jtype = ""          # plain JOIN is INNER by default
                 else:
                     jtype = f"{jtype} "
-                alias = f" {step.alias}" if step.alias else ""
+                alias = f" AS {step.alias}" if step.alias else ""
                 cond = self._emit_expr(step.condition) if step.condition else "TRUE"
                 join_parts.append(f"{jtype}JOIN {step.source}{alias} ON {cond}")
 

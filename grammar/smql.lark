@@ -19,14 +19,14 @@ field_list: field ("," field)*
 field: CNAME ":" type_annotation
 
 type_annotation: type_name
-type_name: "string" ["?"]
-         | "int"
-         | "decimal" "(" INT "," INT ")"
-         | "bool"
-         | "date"
-         | "datetime"
-         | "uuid"
-         | CNAME
+!type_name: "string" ["?"]
+          | "int"
+          | "decimal" "(" INT "," INT ")"
+          | "bool"
+          | "date"
+          | "datetime"
+          | "uuid"
+          | CNAME
 
 ?step_body: from_clause
           | filter_clause
@@ -38,7 +38,7 @@ type_name: "string" ["?"]
           | select_clause
           | union_clause
 
-from_clause: "from" source _NL
+from_clause: "from" source ["as" CNAME] _NL
 filter_clause: "filter" expression _NL
 derive_clause: "derive" CNAME "=" expression _NL
 join_clause: [join_type] "join" source ["as" CNAME] "on" expression _NL
@@ -49,7 +49,7 @@ select_clause: "select" select_list _NL
 union_clause: "|" "union" "(" (step_body)* ")" _NL
 
 source: CNAME ["(" [call_args] ")"]
-      | "(" (step_body)* ")"
+      | "(" (_NL | step_body)* ")"
 
 call_args: call_arg ("," call_arg)*
 call_arg: ["@"] CNAME "=" expression

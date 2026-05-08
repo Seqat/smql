@@ -50,6 +50,7 @@ class FromClause(Node):
 class FromSubquery(Node):
     """from ( pipeline )"""
     pipeline: list['Node'] = field(default_factory=list)
+    alias: Optional[str] = None
 
 
 @dataclass

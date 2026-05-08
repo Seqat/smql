@@ -23,6 +23,8 @@ def compile(
     target: str = typer.Option("postgres", "--target", "-t", help="Target SQL dialect"),
     output: str = typer.Option(None, "--output", "-o", help="Output file (prints to stdout if omitted)"),
     explain: bool = typer.Option(False, "--explain", "-e", help="Print source map and diagnostics"),
+    param: list[str] = typer.Option(None, "--param", "-p", help="Parameter key=value pairs"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Output SQL with placeholders without requiring actual parameter values"),
 ):
     """Compile a SMQL file to SQL."""
     file_path = Path(path)
@@ -33,6 +35,34 @@ def compile(
 
     if file_path.suffix != ".smql":
         console.print(f"[yellow]Warning:[/yellow] Expected .smql extension, got {file_path.suffix}")
+
+    def _parse_val(v: str):
+        if v.isdigit() or (v.startswith('-') and v[1:].isdigit()):
+            return int(v)
+        try:
+            return float(v)
+        except ValueError:
+            return v
+
+    param_values = {}
+    if param:
+        for p in param:
+            if "=" in p:
+                k, v = p.split("=", 1)
+                param_values[k] = _parse_val(v)
+            else:
+                param_values[p] = ""
+
+    class DryRunDict(dict):
+        def __contains__(self, key):
+            return True
+        def __getitem__(self, key):
+            return f"@{key}"
+        def __bool__(self):
+            return True
+
+    if dry_run:
+        param_values = DryRunDict()
 
     try:
         # Parse
@@ -60,7 +90,7 @@ def compile(
             raise typer.Exit(code=1)
 
         # Generate SQL
-        generator = PostgresCodeGenerator()
+        generator = PostgresCodeGenerator(param_values=param_values)
         sql, params = generator.generate(ast)
 
         # Output
@@ -77,6 +107,9 @@ def compile(
                     param_table.add_row(f"${i}", repr(val))
                 console.print(param_table)
 
+    except ValueError as e:
+        console.print(f"[red]Parameter Error:[/red] {e}")
+        raise typer.Exit(code=1)
     except Exception as e:
         console.print(f"[red]Compilation failed:[/red] {e}")
         raise typer.Exit(code=1)
