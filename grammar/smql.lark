@@ -1,0 +1,123 @@
+// SMQL Grammar v0.2.0 for Lark parser
+// SeMantic Query Language — "The Safe Pipe"
+
+start: (_NL | statement)*
+
+?statement: import_stmt
+          | query_def
+          | step_body
+
+import_stmt: "import" ESCAPED_STRING _NL
+
+query_def: "query" CNAME "(" [param_list] ")" [return_clause] _NL (step_body)* "end" _NL
+
+param_list: param ("," param)*
+param: "@" CNAME ":" type_annotation
+
+return_clause: "returns" "{" field_list "}"
+field_list: field ("," field)*
+field: CNAME ":" type_annotation
+
+type_annotation: type_name
+type_name: "string" ["?"]
+         | "int"
+         | "decimal" "(" INT "," INT ")"
+         | "bool"
+         | "date"
+         | "datetime"
+         | "uuid"
+         | CNAME
+
+?step_body: from_clause
+          | filter_clause
+          | derive_clause
+          | join_clause
+          | aggregate_clause
+          | sort_clause
+          | take_clause
+          | select_clause
+          | union_clause
+
+from_clause: "from" source _NL
+filter_clause: "filter" expression _NL
+derive_clause: "derive" CNAME "=" expression _NL
+join_clause: [join_type] "join" source ["as" CNAME] "on" expression _NL
+aggregate_clause: "aggregate" aggregate_list ["by" group_list] _NL
+sort_clause: "sort" sort_list _NL
+take_clause: "take" INT _NL
+select_clause: "select" select_list _NL
+union_clause: "|" "union" "(" (step_body)* ")" _NL
+
+source: CNAME ["(" [call_args] ")"]
+      | "(" (step_body)* ")"
+
+call_args: call_arg ("," call_arg)*
+call_arg: ["@"] CNAME "=" expression
+
+join_type: JOIN_TYPE
+JOIN_TYPE: "left" | "right" | "cross" | "inner"
+
+aggregate_list: aggregate_item ("," aggregate_item)*
+aggregate_item: CNAME "=" AGG_FN "(" expression ")"
+AGG_FN: "count_distinct" | "sum" | "avg" | "count" | "min" | "max"
+
+group_list: expression ("," expression)*
+
+sort_list: sort_item ("," sort_item)*
+sort_item: expression [SORT_DIR]
+SORT_DIR: "asc" | "desc"
+
+select_list: select_item ("," select_item)*
+select_item: expression ["as" CNAME]
+
+// --- Expressions ---
+?expression: or_expr
+
+?or_expr: and_expr
+        | or_expr "or" and_expr
+
+?and_expr: comparison
+         | and_expr "and" comparison
+
+?comparison: additive
+           | additive CMP_OP additive
+           | additive "is" "not" "null" -> is_not_null
+           | additive "is" "null"       -> is_null
+
+CMP_OP: "==" | "!=" | ">=" | "<=" | ">" | "<"
+
+?additive: multiplicative
+         | additive "+" multiplicative  -> add
+         | additive "-" multiplicative  -> sub
+
+?multiplicative: unary
+               | multiplicative "*" unary -> mul
+               | multiplicative "/" unary -> div
+
+?unary: "not" primary -> not_expr
+      | primary
+
+?primary: INT            -> int_literal
+        | FLOAT          -> float_literal
+        | ESCAPED_STRING -> string_literal
+        | "@" CNAME      -> param_ref
+        | CNAME "(" [arg_list] ")" -> function_call
+        | CNAME ("." CNAME)+  -> qualified_name
+        | CNAME          -> name
+        | "(" expression ")"
+
+arg_list: expression ("," expression)*
+
+// --- Lexical ---
+COMMENT: "//" /[^\n]/*
+%ignore COMMENT
+%ignore WS_INLINE
+
+_NL: NEWLINE+
+
+%import common.CNAME
+%import common.INT
+%import common.FLOAT
+%import common.ESCAPED_STRING
+%import common.NEWLINE
+%import common.WS_INLINE
